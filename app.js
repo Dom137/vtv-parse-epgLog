@@ -14,6 +14,8 @@ const AIOPS_AUTH_EP_PW = process.env.AIOPS_AUTH_EP_PW;
 const AIOPS_ALERTS_WEBHOOK_EP = process.env.AIOPS_ALERTS_WEBHOOK_EP;
 const AIOPS_RESOURCES_EP = process.env.AIOPS_RESOURCES_EP; 
 
+const BUCKET_NAME = process.env.AWS_BUCKET_NAME;
+
 let AIOPS_AUTH_TOKEN = '';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -150,7 +152,6 @@ const parseLogLine = async (line, folderName, topoChannelData) => {
             let channelName = epgId;
 
             // look up the prober ressource name, identified via Tag <OPCO_EPGID>
-            // look up the proper ressource name, identified via Tag <OPCO_EPGID>
             if (topoChannelData && topoChannelData[epgId]) {
                 channelName = topoChannelData[epgId];
                 ressourceIdentifier = ressourceIdentifier + '_' + channelName;
@@ -293,7 +294,7 @@ const listFoldersAndParseLatestFiles = async (bucketName) => {
 (async () => {
     try {
       AIOPS_AUTH_TOKEN = await getAuthToken();
-      listFoldersAndParseLatestFiles('epg-check-result');
+      listFoldersAndParseLatestFiles(BUCKET_NAME);
     } catch (error) {
       console.error('Failed to get AIOps auth token:', error);
     }
