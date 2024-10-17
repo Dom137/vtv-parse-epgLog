@@ -1,0 +1,25 @@
+{
+  "name": "vtv-parse-epglog",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dom137/vtv-parse-epgLog.git"
+  },
+  "author": "Dominic Lehr",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Dom137/vtv-parse-epgLog/issues"
+  },
+  "homepage": "https://github.com/Dom137/vtv-parse-epgLog#readme",
+  "dependencies": {
+    "aws-sdk": "^2.1691.0",
+    "axios": "^1.7.7",
+    "https": "^1.0.0"
+  }
+}
