@@ -5,7 +5,7 @@ const https = require('https');
 
 const DEV_MODE = false;
 
-const PARSE_INFO_EVENTS = process.env.PARSE_INFO_EVENTS;;
+const PARSE_INFO_EVENTS = process.env.PARSE_INFO_EVENTS.toLowerCase() == 'true';
 
 const AIOPS_AUTH_EP = process.env.AIOPS_AUTH_EP;
 const AIOPS_AUTH_EP_USER = process.env.AIOPS_AUTH_EP_USER; 
