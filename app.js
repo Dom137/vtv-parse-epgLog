@@ -8,15 +8,13 @@ const DEV_MODE = false;
 const PARSE_INFO_EVENTS = process.env.PARSE_INFO_EVENTS.toLowerCase() == 'true';
 
 const AIOPS_AUTH_EP = process.env.AIOPS_AUTH_EP;
-const AIOPS_AUTH_EP_USER = process.env.AIOPS_AUTH_EP_USER; 
-const AIOPS_AUTH_EP_PW = process.env.AIOPS_AUTH_EP_PW; 
+const AIOPS_AUTH_EP_USER = process.env.AIOPS_AUTH_EP_USER;
+const AIOPS_AUTH_EP_PW = process.env.AIOPS_AUTH_EP_PW;
 
 const AIOPS_ALERTS_WEBHOOK_EP = process.env.AIOPS_ALERTS_WEBHOOK_EP;
-const AIOPS_RESOURCES_EP = process.env.AIOPS_RESOURCES_EP; 
+const AIOPS_TOPO_EP = process.env.AIOPS_TOPO_EP;
 
 const BUCKET_NAME = process.env.AWS_BUCKET_NAME;
-
-let AIOPS_AUTH_TOKEN = '';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -26,33 +24,43 @@ const client = axios.create({
     httpsAgent: new https.Agent({ keepAlive: true }),
 })
 
-const s3 = new AWS.S3();
+// will be set during runtime based on env var
+let USE_PROXY = false;
+let PROXY_URL = '';
+let s3 = null;
+let AIOPS_AUTH_TOKEN = '';
+
+// helper funciton to convert a string to boolean
+async function envStringToBoolean(envVar) {
+    return envVar === 'true' || envVar === '1';
+}
 
 // function to get the Auth token
 async function getAuthToken() {
     try {
-      const response = await axios.post(
-        AIOPS_AUTH_EP,
-        {
-          username: AIOPS_AUTH_EP_USER,
-          api_key: AIOPS_AUTH_EP_PW
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      );
-  
-      // Extract the token from the response data
-      const token = response.data.token;
-      
-      // Return the token
-      return token;
+        const response = await axios.post(
+            AIOPS_AUTH_EP,
+            {
+                username: AIOPS_AUTH_EP_USER,
+                api_key: AIOPS_AUTH_EP_PW
+            },
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                proxy: false
+            }
+        );
+
+        // Extract the token from the response data
+        const token = response.data.token;
+
+        // Return the token
+        return token;
     } catch (error) {
-      console.error('Error:', error.response ? error.response.data : error.message);
+        console.error('Error:', error.response ? error.response.data : error.message);
     }
-  }
+}
 
 // Function to send the event object to the HTTP endpoint
 async function sendEventsToEndpoint(event) {
@@ -60,7 +68,8 @@ async function sendEventsToEndpoint(event) {
         const response = await client.post(AIOPS_ALERTS_WEBHOOK_EP, event, {
             headers: {
                 'Content-Type': 'application/json'
-            }
+            },
+            proxy: false
         });
         console.log(`Successfully sent event to endpoint: ${response.status}`);
     } catch (error) {
@@ -75,7 +84,7 @@ function delay(ms) {
 }
 
 async function fetchTopologyData(tag) {
-    const url = `${AIOPS_RESOURCES_EP}?_filter=tags%3D${tag}&_limit=10000&_field=name&_field=epgId&_type=channel&_include_global_resources=false&_include_count=false&_include_status=false&_include_status_severity=false&_include_metadata=false&_return_composites=false`;
+    const url = `${AIOPS_TOPO_EP}?_filter=tags%3D${tag}&_limit=10000&_field=name&_field=epgId&_type=channel&_include_global_resources=false&_include_count=false&_include_status=false&_include_status_severity=false&_include_metadata=false&_return_composites=false`;
 
     try {
         const response = await axios.get(url, {
@@ -83,7 +92,8 @@ async function fetchTopologyData(tag) {
                 'accept': 'application/json',
                 'X-TenantID': 'cfd95b7e-3bc7-4006-a4a8-a73a79c71255',
                 'Authorization': 'Bearer ' + AIOPS_AUTH_TOKEN
-            }
+            },
+            proxy: false
         });
 
         if (response.data) {
@@ -241,34 +251,34 @@ const listFoldersAndParseLatestFiles = async (bucketName) => {
                         //console.warn('DEBUG-MODE: Only processing data for OPCO <DE>!');
                         const event = await parseLogLine(line, folderName, topoChannelData);
                         if (event && Object.keys(event).length > 0) {
-                            if(event.event){
+                            if (event.event) {
                                 if (event.event.severity > 0) {
                                     criticalEventsToSend.push(event.event);
                                 }
                                 else if (event.event.severity == 0) {
                                     clearEventsToSend.push(event.event);
                                 }
-                            }                            
+                            }
                         }
                     }
                 }
                 else {
                     const event = await parseLogLine(line, folderName, topoChannelData);
                     if (event && Object.keys(event).length > 0) {
-                        if(event.event.severity){
+                        if (event.event.severity) {
                             if (event.event.severity > 0) {
                                 criticalEventsToSend.push(event.event);
                             }
                             else {
                                 clearEventsToSend.push(event.event);
                             }
-                        } 
+                        }
                     }
                 }
             });
-            const numOfCritEvents = criticalEventsToSend.length; 
-            const numOfClearEvents = clearEventsToSend.length;            
-            if(PARSE_INFO_EVENTS && numOfClearEvents > 0){
+            const numOfCritEvents = criticalEventsToSend.length;
+            const numOfClearEvents = clearEventsToSend.length;
+            if (PARSE_INFO_EVENTS && numOfClearEvents > 0) {
                 console.log('Clear events: ' + numOfClearEvents);
                 eventToSend.events = clearEventsToSend;
                 console.log(eventToSend);
@@ -277,13 +287,13 @@ const listFoldersAndParseLatestFiles = async (bucketName) => {
 
             await new Promise(resolve => setTimeout(resolve, 1000));
 
-            if(numOfCritEvents > 0){
+            if (numOfCritEvents > 0) {
                 console.log('Critical events: ' + numOfCritEvents);
                 eventToSend.events = criticalEventsToSend;
                 //console.log(eventToSend);
                 await sendEventsToEndpoint(eventToSend);
-            }         
-            
+            }
+
             console.log('--------------------------------------------');
         }
     } catch (error) {
@@ -293,10 +303,38 @@ const listFoldersAndParseLatestFiles = async (bucketName) => {
 
 (async () => {
     try {
-      AIOPS_AUTH_TOKEN = await getAuthToken();
-      listFoldersAndParseLatestFiles(BUCKET_NAME);
+        console.log("Trying to get Bearer token from AIOps Auth endpoint...");
+        AIOPS_AUTH_TOKEN = await getAuthToken();
+        let retryCount = 0
+        while (retryCount < 3 && AIOPS_AUTH_TOKEN == null) {
+            console.warn("Warning: Could not get AIOps Auth token. Retrying...");
+            retryCount++;
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            AIOPS_AUTH_TOKEN = await getAuthToken();
+        }
+        if (AIOPS_AUTH_TOKEN == null) {
+            console.error("ERROR getting AIOps Auth token, retry limit reached! Cannot continue.");
+            process.exit(1);
+        }
+        else {
+            console.log("Bearer token from AIOps Auth endpoint received.");
+            USE_PROXY = await envStringToBoolean(process.env.APP_USE_PROXY);
+            if (USE_PROXY) {
+                PROXY_URL = process.env.APP_PROXY_URL;
+                const proxyAgent = await new ProxyAgent(PROXY_URL);
+                AWS.config.update({
+                    httpOptions: { agent: proxyAgent }
+                });
+                console.log(`Using proxy url <${PROXY_URL}> to access AWS S3 bucket...`);
+            }
+            else {
+                console.log("NOT using proxy to access AWS S3 bucket.");
+            }
+            s3 = new AWS.S3();
+            listFoldersAndParseLatestFiles(BUCKET_NAME);
+        }
     } catch (error) {
-      console.error('Failed to get AIOps auth token:', error);
+        console.error('Failed to get AIOps auth token:', error);
     }
-  })();
+})();
 
