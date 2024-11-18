@@ -5,7 +5,7 @@ const https = require('https');
 
 const DEV_MODE = false;
 
-const PARSE_INFO_EVENTS = process.env.PARSE_INFO_EVENTS.toLowerCase() == 'true';
+
 
 const AIOPS_AUTH_EP = process.env.AIOPS_AUTH_EP;
 const AIOPS_AUTH_EP_USER = process.env.AIOPS_AUTH_EP_USER;
@@ -29,6 +29,7 @@ let USE_PROXY = false;
 let PROXY_URL = '';
 let s3 = null;
 let AIOPS_AUTH_TOKEN = '';
+let PARSE_INFO_EVENTS = false;
 
 // helper funciton to convert a string to boolean
 async function envStringToBoolean(envVar) {
@@ -303,6 +304,13 @@ const listFoldersAndParseLatestFiles = async (bucketName) => {
 
 (async () => {
     try {
+        PARSE_INFO_EVENTS = await envStringToBoolean(process.env.PARSE_INFO_EVENTS);
+        if(PARSE_INFO_EVENTS){
+            console.log("Info events will be processed as per configuration.");
+        }
+        else {
+            console.log("Info events will be ignored as per configuration.");
+        }
         console.log("Trying to get Bearer token from AIOps Auth endpoint...");
         AIOPS_AUTH_TOKEN = await getAuthToken();
         let retryCount = 0
