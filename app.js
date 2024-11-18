@@ -1,5 +1,6 @@
 // Load the AWS SDK and required modules
 const AWS = require('aws-sdk');
+const ProxyAgent = require('proxy-agent').ProxyAgent;
 const axios = require('axios');
 const https = require('https');
 
